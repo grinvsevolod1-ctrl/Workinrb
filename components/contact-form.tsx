@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { SmartPhoneInput, isValidPhoneNumber } from "@/components/phone-input"
 import { trackMetaLead } from "@/components/meta-pixel"
 import { useUTM } from "@/hooks/use-utm"
+import { submitLead } from "@/lib/lead-submit"
 
 // Declare ym for TypeScript
 declare global {
@@ -20,6 +21,7 @@ declare global {
 export function ContactForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [isDuplicate, setIsDuplicate] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [phone, setPhone] = useState("")
   const ref = useRef(null)
@@ -47,33 +49,32 @@ export function ContactForm() {
       ...utmParams,
     }
 
-    try {
-      const response = await fetch('/api/send-lead', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      })
+    const result = await submitLead(data)
 
-      if (!response.ok) {
-        throw new Error('Ошибка отправки')
-      }
-
-      setIsSubmitted(true)
-      
-      // Яндекс.Метрика цель - заявка из основной формы
-      if (typeof window !== 'undefined' && window.ym) {
-        window.ym(109238611, 'reachGoal', 'lead_form_submit')
-      }
-      
-      // Meta Pixel - отслеживание лида
-      trackMetaLead()
-    } catch {
-      setError('Не удалось отправить заявку. Попробуйте позже или позвоните нам.')
-    } finally {
+    if (!result.ok) {
+      setError(result.message || 'Не удалось отправить заявку. Попробуйте позже.')
       setIsSubmitting(false)
+      return
     }
+
+    // Дубликат: показываем успех, но НЕ трекаем конверсию повторно.
+    if (result.duplicate) {
+      setIsDuplicate(true)
+      setIsSubmitted(true)
+      setIsSubmitting(false)
+      return
+    }
+
+    setIsSubmitted(true)
+    setIsSubmitting(false)
+
+    // Яндекс.Метрика цель - заявка из основной формы
+    if (typeof window !== 'undefined' && window.ym) {
+      window.ym(109238611, 'reachGoal', 'lead_form_submit')
+    }
+
+    // Meta Pixel - отслеживание лида
+    trackMetaLead()
   }
 
   return (
@@ -183,17 +184,28 @@ export function ContactForm() {
                   <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-5 sm:mb-6 md:mb-8">
                     <CheckCircle2 className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 text-primary" />
                   </div>
-                  <h3 className="text-2xl sm:text-3xl font-bold text-foreground mb-3 sm:mb-4">Заявка отправлена!</h3>
+                  <h3 className="text-2xl sm:text-3xl font-bold text-foreground mb-3 sm:mb-4">
+                    {isDuplicate ? "Вы уже оставили заявку" : "Заявка отправлена!"}
+                  </h3>
                   <p className="text-muted-foreground text-sm sm:text-base md:text-lg mb-6 sm:mb-8 px-2">
-                    Мы перезвоним тебе в ближайший час.<br />Приготовь паспорт для оформления.
+                    {isDuplicate
+                      ? "Ваша заявка уже у нас. Мы скоро вам перезвоним — не нужно отправлять повторно."
+                      : "Мы перезвоним тебе в ближайший час."}
+                    {!isDuplicate && (
+                      <>
+                        <br />Приготовь паспорт для оформления.
+                      </>
+                    )}
                   </p>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setIsSubmitted(false)}
-                    className="rounded-xl"
-                  >
-                    Отправить ещё
-                  </Button>
+                  {!isDuplicate && (
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setIsSubmitted(false)}
+                      className="rounded-xl"
+                    >
+                      Отправить ещё
+                    </Button>
+                  )}
                 </motion.div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5 md:space-y-6">

@@ -15,6 +15,7 @@ import {
 import { SmartPhoneInput, isValidPhoneNumber } from "@/components/phone-input"
 import { trackMetaLead } from "@/components/meta-pixel"
 import { useUTM } from "@/hooks/use-utm"
+import { submitLead } from "@/lib/lead-submit"
 
 // Declare ym for TypeScript
 declare global {
@@ -31,6 +32,7 @@ interface LeadModalProps {
 export function LeadModal({ open, onOpenChange }: LeadModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [isDuplicate, setIsDuplicate] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [phone, setPhone] = useState("")
   const utmParams = useUTM()
@@ -56,33 +58,32 @@ export function LeadModal({ open, onOpenChange }: LeadModalProps) {
       ...utmParams,
     }
 
-    try {
-      const response = await fetch('/api/send-lead', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      })
+    const result = await submitLead(data)
 
-      if (!response.ok) {
-        throw new Error('Ошибка отправки')
-      }
-
-      setIsSubmitted(true)
-      
-      // Яндекс.Метрика цель - заявка из модального окна
-      if (typeof window !== 'undefined' && window.ym) {
-        window.ym(109238611, 'reachGoal', 'lead_modal_submit')
-      }
-      
-      // Meta Pixel - отслеживание лида
-      trackMetaLead()
-    } catch {
-      setError('Не удалось отправить заявку. Попробуйте позже.')
-    } finally {
+    if (!result.ok) {
+      setError(result.message || 'Не удалось отправить заявку. Попробуйте позже.')
       setIsSubmitting(false)
+      return
     }
+
+    // Дубликат: показываем успех, но НЕ трекаем конверсию повторно.
+    if (result.duplicate) {
+      setIsDuplicate(true)
+      setIsSubmitted(true)
+      setIsSubmitting(false)
+      return
+    }
+
+    setIsSubmitted(true)
+    setIsSubmitting(false)
+
+    // Яндекс.Метрика цель - заявка из модального окна
+    if (typeof window !== 'undefined' && window.ym) {
+      window.ym(109238611, 'reachGoal', 'lead_modal_submit')
+    }
+
+    // Meta Pixel - отслеживание лида
+    trackMetaLead()
   }
 
   const handleClose = () => {
@@ -90,6 +91,7 @@ export function LeadModal({ open, onOpenChange }: LeadModalProps) {
     // Reset state after animation
     setTimeout(() => {
       setIsSubmitted(false)
+      setIsDuplicate(false)
       setError(null)
       setPhone("")
     }, 300)
@@ -132,9 +134,13 @@ export function LeadModal({ open, onOpenChange }: LeadModalProps) {
                 >
                   <CheckCircle2 className="w-8 h-8 sm:w-10 sm:h-10 text-primary" />
                 </motion.div>
-                <h3 className="text-xl sm:text-2xl font-bold text-foreground mb-2 sm:mb-3">Заявка отправлена!</h3>
+                <h3 className="text-xl sm:text-2xl font-bold text-foreground mb-2 sm:mb-3">
+                  {isDuplicate ? "Вы уже оставили заявку" : "Заявка отправлена!"}
+                </h3>
                 <p className="text-muted-foreground text-sm sm:text-base mb-4 sm:mb-6">
-                  Мы перезвоним тебе в ближайший час
+                  {isDuplicate
+                    ? "Ваша заявка уже у нас. Мы скоро вам перезвоним."
+                    : "Мы перезвоним тебе в ближайший час"}
                 </p>
                 <Button onClick={handleClose} className="rounded-xl">
                   Закрыть

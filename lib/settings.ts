@@ -40,7 +40,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   heroBadgeHighlight: 'старт через 3 дня',
   heroHeadingLine1: 'Честная работа',
   heroSalaryText: '100 BYN / день',
-  heroSubtitlePrefix: 'Подсобные работы в Москве',
+  heroSubtitlePrefix: 'Подсобные работы на стройке в Москве',
   heroMenOnlyBadge: 'ТОЛЬКО ДЛЯ МУЖЧИН',
   heroSubtitleSuffix: 'Вахта от 30 дней. Жильё и питание за наш счёт.',
   heroStat1Value: '500+',

@@ -54,6 +54,8 @@ model Lead {
   id        String     @id @default(cuid())
   name      String
   phone     String
+  // Телефон в формате E.164 (+375...) для дедупликации заявок.
+  phoneNormalized String?
   city      String?
   status    LeadStatus @default(NEW)
   source    String     @default("website")
@@ -86,6 +88,7 @@ model Lead {
   @@index([status])
   @@index([createdAt])
   @@index([assignedToId])
+  @@index([phoneNormalized, createdAt])
   @@map("leads")
 }
 

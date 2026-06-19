@@ -3,6 +3,7 @@ import { getPrisma } from '@/lib/prisma'
 import { buildInlineKeyboard } from '@/app/api/telegram/webhook/route'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import { getSettings } from '@/lib/settings'
+import { validateAndNormalizePhone } from '@/lib/phone'
 import crypto from 'crypto'
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
@@ -131,14 +132,49 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Имя и телефон обязательны' }, { status: 400 })
     }
 
+    // Серверная валидация телефона: отсекаем мусор и боты, которые шлют
+    // некорректные номера. Нормализуем к формату E.164 для дедупликации.
+    const phoneCheck = validateAndNormalizePhone(phone)
+    if (!phoneCheck.valid) {
+      return NextResponse.json(
+        { error: 'Проверьте номер телефона — он указан некорректно.' },
+        { status: 400 }
+      )
+    }
+    const normalizedPhone = phoneCheck.normalized as string
+
+    const prisma = getPrisma()
+
+    // Дедупликация: если с этого номера уже была заявка за последние 24 часа,
+    // не создаём новый лид и не платим за конверсию повторно.
+    if (prisma) {
+      try {
+        const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
+        const existing = await prisma.lead.findFirst({
+          where: { phoneNormalized: normalizedPhone, createdAt: { gte: since } },
+          select: { id: true },
+        })
+        if (existing) {
+          return NextResponse.json(
+            { duplicate: true, message: 'Вы уже оставили заявку. Мы скоро вам перезвоним.' },
+            { status: 200 }
+          )
+        }
+      } catch (err) {
+        // Если проверка дублей упала — не блокируем заявку, просто логируем.
+        console.error('[v0] Dedup check failed:', err)
+      }
+    }
+
     // Сохраняем в БД
     let lead = null
     let dbError = false
-    const prisma = getPrisma()
     try {
       lead = prisma ? await prisma.lead.create({
         data: {
-          name, phone,
+          name,
+          phone,
+          phoneNormalized: normalizedPhone,
           city: message || null,
           source: utmSource || 'website',
           status: 'NEW',

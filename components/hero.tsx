@@ -23,7 +23,7 @@ export function Hero({ settings = DEFAULT_SETTINGS }: { settings?: SiteSettings 
       <div className="absolute inset-0">
         <Image
           src="/images/hero-landscaping.jpg"
-          alt="Работа подсобником в Москве"
+          alt="Работа подсобником на стройке в Москве"
           fill
           className="object-cover"
           priority

@@ -1,65 +1,211 @@
 "use client"
 
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Calculator, Wallet, TrendingUp, Calendar } from "lucide-react"
+import { Slider } from "@/components/ui/slider"
+import { Calculator, Wallet, TrendingUp, Calendar, Home, UtensilsCrossed, Sparkles } from "lucide-react"
 import { LeadModal } from "@/components/lead-modal"
-import { useState } from "react"
 
 const DAILY_RATE_BYN = 100
+// Надбавка за смену при работе с переработками
+const OVERTIME_BONUS_BYN = 25
+// Примерный курс BYN -> RUB для ориентира
+const BYN_TO_RUB = 28
+// Сколько в среднем тратит вахтовик в месяц на жильё и питание (₽),
+// если снимает сам — это и есть экономия, т.к. у нас всё бесплатно.
+const HOUSING_COST_RUB = 18000
+const FOOD_COST_RUB = 15000
+
+// Плавная анимация числа при изменении значения
+function useAnimatedNumber(target: number, duration = 500) {
+  const [value, setValue] = useState(target)
+  const startRef = useRef(target)
+  const fromRef = useRef(target)
+
+  useEffect(() => {
+    fromRef.current = startRef.current
+    const start = performance.now()
+    let raf = 0
+    const tick = (now: number) => {
+      const progress = Math.min((now - start) / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      const next = Math.round(fromRef.current + (target - fromRef.current) * eased)
+      setValue(next)
+      startRef.current = next
+      if (progress < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [target, duration])
+
+  return value
+}
 
 export function SalaryBreakdown() {
   const [modalOpen, setModalOpen] = useState(false)
-  const days = 30
-  const earnings = DAILY_RATE_BYN * days
-  const weeklyEarnings = DAILY_RATE_BYN * 7
+  const [days, setDays] = useState(30)
+  const [overtime, setOvertime] = useState(false)
+
+  const ratePerDay = DAILY_RATE_BYN + (overtime ? OVERTIME_BONUS_BYN : 0)
+  const totalByn = ratePerDay * days
+  const totalRub = totalByn * BYN_TO_RUB
+  const perWeekByn = ratePerDay * 7
+  // Экономия за период пропорционально дням
+  const savingsRub = Math.round(((HOUSING_COST_RUB + FOOD_COST_RUB) / 30) * days)
+
+  const animatedByn = useAnimatedNumber(totalByn)
+  const animatedRub = useAnimatedNumber(totalRub)
+  const animatedSavings = useAnimatedNumber(savingsRub)
+
+  // Подписи для популярных периодов
+  const periodLabel =
+    days <= 7 ? "неделя" : days <= 14 ? "2 недели" : days <= 31 ? "месяц вахты" : `${days} дней вахты`
+
+  const presets = [
+    { label: "Неделя", value: 7 },
+    { label: "2 недели", value: 14 },
+    { label: "Месяц", value: 30 },
+    { label: "45 дней", value: 45 },
+    { label: "60 дней", value: 60 },
+  ]
 
   return (
-    <section className="py-12 sm:py-16 md:py-20">
+    <section id="money" className="py-12 sm:py-16 md:py-20">
       <div className="container mx-auto px-4 sm:px-6 md:px-12">
         <div className="text-center mb-8 sm:mb-12">
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4">Зарплата без обмана</h2>
-          <p className="text-base sm:text-lg text-muted-foreground max-w-xl mx-auto">
-            Прозрачный расчёт. Никаких скрытых комиссий или вычетов.
+          <div className="inline-flex items-center gap-2 glass rounded-full px-4 py-2 mb-4">
+            <Calculator className="w-4 h-4 text-primary" />
+            <span className="text-sm text-muted-foreground">Калькулятор заработка</span>
+          </div>
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4 text-balance">
+            Посчитай свою зарплату
+          </h2>
+          <p className="text-base sm:text-lg text-muted-foreground max-w-xl mx-auto text-pretty">
+            Двигай ползунок и смотри, сколько заработаешь. Прозрачный расчёт без скрытых вычетов.
           </p>
         </div>
 
         {/* Main Card */}
         <div className="glass rounded-2xl sm:rounded-3xl p-6 sm:p-8 md:p-12 max-w-3xl mx-auto">
-          {/* Daily Rate */}
-          <div className="text-center mb-8 sm:mb-12">
-            <div className="text-muted-foreground mb-2">Дневная ставка</div>
-            <div className="flex items-center justify-center gap-2">
-              <span className="text-5xl sm:text-6xl md:text-7xl font-bold gradient-text">
-                {DAILY_RATE_BYN}
+          {/* Result */}
+          <div className="text-center mb-8">
+            <div className="text-muted-foreground mb-2">Твой заработок за {periodLabel}</div>
+            <div className="flex items-end justify-center gap-2 flex-wrap">
+              <span className="text-5xl sm:text-6xl md:text-7xl font-bold gradient-text leading-none">
+                {animatedByn.toLocaleString("ru-RU")}
               </span>
-              <span className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground">BYN</span>
+              <span className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-1">BYN</span>
             </div>
-            <div className="text-muted-foreground mt-1">/ день</div>
+            <div className="text-base sm:text-lg text-muted-foreground mt-2">
+              ≈ {animatedRub.toLocaleString("ru-RU")} ₽
+            </div>
           </div>
 
-          {/* Calculator */}
-          <div className="space-y-4 sm:space-y-6 mb-8 sm:mb-12">
-            <div className="flex items-center gap-3 glass rounded-xl p-4 sm:p-5">
-              <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-primary flex-shrink-0" />
-              <div className="flex-1">
-                <div className="text-sm text-muted-foreground">Смен в месяц</div>
-                <div className="text-lg sm:text-xl font-bold text-foreground">{days} дней (полный месяц)</div>
+          {/* Slider */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-primary" />
+                <span className="text-sm sm:text-base font-medium text-foreground">Смен отработано</span>
+              </div>
+              <span className="text-xl sm:text-2xl font-bold text-foreground tabular-nums">{days}</span>
+            </div>
+            <Slider
+              value={[days]}
+              min={5}
+              max={75}
+              step={1}
+              onValueChange={(v) => setDays(v[0])}
+              aria-label="Количество смен"
+            />
+            <div className="flex justify-between text-xs text-muted-foreground mt-2">
+              <span>5 смен</span>
+              <span>75 смен</span>
+            </div>
+          </div>
+
+          {/* Presets */}
+          <div className="flex flex-wrap gap-2 mb-6">
+            {presets.map((p) => (
+              <button
+                key={p.value}
+                onClick={() => setDays(p.value)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  days === p.value
+                    ? "bg-primary text-primary-foreground"
+                    : "glass text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Overtime toggle */}
+          <button
+            onClick={() => setOvertime((v) => !v)}
+            className="w-full flex items-center justify-between glass rounded-xl p-4 mb-6 hover:bg-card/80 transition-colors text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <TrendingUp className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <div className="font-semibold text-foreground">Работа с переработками</div>
+                <div className="text-sm text-muted-foreground">+{OVERTIME_BONUS_BYN} BYN за смену</div>
               </div>
             </div>
+            <div
+              className={`relative w-12 h-7 rounded-full transition-colors flex-shrink-0 ${
+                overtime ? "bg-primary" : "bg-muted"
+              }`}
+            >
+              <div
+                className={`absolute top-1 w-5 h-5 rounded-full bg-background transition-transform ${
+                  overtime ? "translate-x-6" : "translate-x-1"
+                }`}
+              />
+            </div>
+          </button>
 
-            <div className="flex items-center gap-3 glass rounded-xl p-4 sm:p-5">
-              <Wallet className="w-5 h-5 sm:w-6 sm:h-6 text-primary flex-shrink-0" />
-              <div className="flex-1">
-                <div className="text-sm text-muted-foreground">Итого в месяц</div>
-                <div className="text-xl sm:text-2xl font-bold gradient-text">{earnings.toLocaleString("ru-RU")} BYN</div>
+          {/* Breakdown rows */}
+          <div className="grid sm:grid-cols-2 gap-3 sm:gap-4 mb-8">
+            <div className="flex items-center gap-3 glass rounded-xl p-4">
+              <Wallet className="w-5 h-5 text-primary flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm text-muted-foreground">Ставка за смену</div>
+                <div className="text-lg font-bold text-foreground">{ratePerDay} BYN</div>
               </div>
             </div>
-
-            <div className="flex items-center gap-3 glass rounded-xl p-4 sm:p-5">
-              <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-primary flex-shrink-0" />
-              <div className="flex-1">
+            <div className="flex items-center gap-3 glass rounded-xl p-4">
+              <TrendingUp className="w-5 h-5 text-primary flex-shrink-0" />
+              <div className="flex-1 min-w-0">
                 <div className="text-sm text-muted-foreground">В неделю</div>
-                <div className="text-xl sm:text-2xl font-bold text-foreground">{weeklyEarnings.toLocaleString("ru-RU")} BYN</div>
+                <div className="text-lg font-bold text-foreground">{perWeekByn.toLocaleString("ru-RU")} BYN</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Savings highlight */}
+          <div className="rounded-xl p-4 sm:p-5 mb-8 bg-primary/10 border border-primary/20">
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles className="w-5 h-5 text-primary" />
+              <span className="font-semibold text-foreground">Плюс ты экономишь</span>
+            </div>
+            <div className="flex items-end gap-2 mb-3">
+              <span className="text-2xl sm:text-3xl font-bold gradient-text">
+                {animatedSavings.toLocaleString("ru-RU")} ₽
+              </span>
+              <span className="text-sm text-muted-foreground mb-1">за {periodLabel}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Home className="w-4 h-4 text-primary flex-shrink-0" />
+                <span>Жильё бесплатно</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <UtensilsCrossed className="w-4 h-4 text-primary flex-shrink-0" />
+                <span>Питание бесплатно</span>
               </div>
             </div>
           </div>
@@ -68,11 +214,14 @@ export function SalaryBreakdown() {
           <div className="text-center">
             <Button
               size="lg"
-              className="text-lg px-8 h-14 sm:h-16 rounded-2xl glow-primary font-semibold"
+              className="text-lg px-8 h-14 sm:h-16 rounded-2xl glow-primary font-semibold w-full sm:w-auto"
               onClick={() => setModalOpen(true)}
             >
-              Хочу такую зарплату
+              Хочу зарабатывать {totalByn.toLocaleString("ru-RU")} BYN
             </Button>
+            <p className="text-xs text-muted-foreground mt-3">
+              Курс ≈ {BYN_TO_RUB} ₽ за 1 BYN. Точную сумму подтвердит менеджер.
+            </p>
           </div>
         </div>
 
