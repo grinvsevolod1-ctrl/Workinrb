@@ -9,12 +9,10 @@ import { LeadModal } from "@/components/lead-modal"
 const DAILY_RATE_BYN = 100
 // Надбавка за смену при работе с переработками
 const OVERTIME_BONUS_BYN = 25
-// Примерный курс BYN -> RUB для ориентира
-const BYN_TO_RUB = 28
-// Сколько в среднем тратит вахтовик в месяц на жильё и питание (₽),
-// если снимает сам — это и есть экономия, т.к. у нас всё бесплатно.
-const HOUSING_COST_RUB = 18000
-const FOOD_COST_RUB = 15000
+// Сколько в среднем в месяц тратил бы вахтовик на жильё и питание (BYN),
+// если бы снимал сам — это и есть экономия, т.к. у нас всё бесплатно.
+const HOUSING_COST_BYN = 650
+const FOOD_COST_BYN = 550
 
 // Плавная анимация числа при изменении значения
 function useAnimatedNumber(target: number, duration = 500) {
@@ -48,14 +46,12 @@ export function SalaryBreakdown() {
 
   const ratePerDay = DAILY_RATE_BYN + (overtime ? OVERTIME_BONUS_BYN : 0)
   const totalByn = ratePerDay * days
-  const totalRub = totalByn * BYN_TO_RUB
   const perWeekByn = ratePerDay * 7
-  // Экономия за период пропорционально дням
-  const savingsRub = Math.round(((HOUSING_COST_RUB + FOOD_COST_RUB) / 30) * days)
+  // Экономия за период пропорционально дням (в BYN)
+  const savingsByn = Math.round(((HOUSING_COST_BYN + FOOD_COST_BYN) / 30) * days)
 
   const animatedByn = useAnimatedNumber(totalByn)
-  const animatedRub = useAnimatedNumber(totalRub)
-  const animatedSavings = useAnimatedNumber(savingsRub)
+  const animatedSavings = useAnimatedNumber(savingsByn)
 
   // Подписи для популярных периодов
   const periodLabel =
@@ -97,7 +93,7 @@ export function SalaryBreakdown() {
               <span className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-1">BYN</span>
             </div>
             <div className="text-base sm:text-lg text-muted-foreground mt-2">
-              ≈ {animatedRub.toLocaleString("ru-RU")} ₽
+              за {days} {days % 10 === 1 && days % 100 !== 11 ? "смену" : "смен"} по {ratePerDay} BYN
             </div>
           </div>
 
@@ -194,7 +190,7 @@ export function SalaryBreakdown() {
             </div>
             <div className="flex items-end gap-2 mb-3">
               <span className="text-2xl sm:text-3xl font-bold gradient-text">
-                {animatedSavings.toLocaleString("ru-RU")} ₽
+                {animatedSavings.toLocaleString("ru-RU")} BYN
               </span>
               <span className="text-sm text-muted-foreground mb-1">за {periodLabel}</span>
             </div>
@@ -220,7 +216,7 @@ export function SalaryBreakdown() {
               Хочу зарабатывать {totalByn.toLocaleString("ru-RU")} BYN
             </Button>
             <p className="text-xs text-muted-foreground mt-3">
-              Курс ≈ {BYN_TO_RUB} ₽ за 1 BYN. Точную сумму подтвердит менеджер.
+              Точную сумму к выплате подтвердит менеджер.
             </p>
           </div>
         </div>
