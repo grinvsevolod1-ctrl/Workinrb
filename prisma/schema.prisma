@@ -1,0 +1,148 @@
+// Prisma schema для CRM WorkInRB
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Роли пользователей
+enum UserRole {
+  ADMIN
+  MANAGER
+}
+
+// Статусы лидов
+enum LeadStatus {
+  NEW           // Новый
+  IN_PROGRESS   // В работе
+  CALL_SCHEDULED // Созвон назначен
+  ACCEPTED      // Принят на работу
+  REJECTED      // Отказ
+  NO_ANSWER     // Не отвечает
+}
+
+// Типы Telegram чатов
+enum TelegramChatType {
+  MANAGER
+  GROUP
+}
+
+// Пользователи системы (админы и менеджеры)
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      UserRole @default(MANAGER)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  comments      Comment[]
+  statusChanges StatusHistory[]
+  assignedLeads Lead[]          @relation("AssignedManager")
+
+  @@map("users")
+}
+
+// Лиды (заявки с сайта)
+model Lead {
+  id        String     @id @default(cuid())
+  name      String
+  phone     String
+  city      String?
+  status    LeadStatus @default(NEW)
+  source    String     @default("website")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  assignedTo   User?   @relation("AssignedManager", fields: [assignedToId], references: [id])
+  assignedToId String?
+
+  // UTM метки
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  utmTerm     String?
+  utmContent  String?
+
+  // Facebook параметры
+  fbclid String?
+  fbp    String?
+  fbc    String?
+
+  // Дополнительные
+  referrer    String?
+  landingPage String?
+  userAgent   String?
+
+  comments      Comment[]
+  statusHistory StatusHistory[]
+
+  @@map("leads")
+}
+
+// Комментарии к лидам
+model Comment {
+  id        String   @id @default(cuid())
+  text      String
+  createdAt DateTime @default(now())
+
+  author   User   @relation(fields: [authorId], references: [id])
+  authorId String
+
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId String
+
+  @@map("comments")
+}
+
+// История изменений статуса
+model StatusHistory {
+  id        String     @id @default(cuid())
+  oldStatus LeadStatus?
+  newStatus LeadStatus
+  createdAt DateTime   @default(now())
+
+  changedBy   User?   @relation(fields: [changedById], references: [id])
+  changedById String?
+
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId String
+
+  @@map("status_history")
+}
+
+// Telegram чаты для уведомлений
+model TelegramChat {
+  id        String           @id @default(cuid())
+  chatId    String           @unique
+  name      String?
+  type      TelegramChatType @default(MANAGER)
+  isActive  Boolean          @default(true)
+  leadCount Int              @default(0)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  messages TelegramMessage[]
+
+  @@map("telegram_chats")
+}
+
+// История сообщений Telegram
+model TelegramMessage {
+  id        String   @id @default(cuid())
+  messageId String
+  text      String
+  leadId    String?
+  createdAt DateTime @default(now())
+
+  chat   TelegramChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  chatId String
+
+  @@map("telegram_messages")
+}

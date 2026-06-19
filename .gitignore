@@ -1,0 +1,12 @@
+node_modules/
+.next/
+.env
+.env.local
+pnpm-lock.yaml
+package-lock.json
+bot/venv/
+bot/sessions.json
+bot/history/
+bot/chat_sessions.json
+*.zip
+*.log
