@@ -1,5 +1,6 @@
 import dynamic from "next/dynamic"
 import { Hero } from "@/components/hero"
+import { getSettings } from "@/lib/settings"
 
 // Динамический импорт тяжелых компонентов
 const SalaryBreakdown = dynamic(() => import("@/components/salary-breakdown").then(mod => ({ default: mod.SalaryBreakdown })), {
@@ -21,10 +22,12 @@ const Footer = dynamic(() => import("@/components/footer").then(mod => ({ defaul
   loading: () => <div className="min-h-[200px] bg-background" />
 })
 
-export default function Home() {
+export default async function Home() {
+  const settings = await getSettings()
+
   return (
     <main className="min-h-screen bg-background">
-      <Hero />
+      <Hero settings={settings} />
       <SalaryBreakdown />
       <Conditions />
       <About />

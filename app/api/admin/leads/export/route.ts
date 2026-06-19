@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { getPrisma } from '@/lib/prisma'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 
 const statusLabels: Record<string, string> = {
   NEW: "Новый",
@@ -33,48 +33,48 @@ export async function GET() {
     }
   })
 
-  // Формируем данные для Excel
-  const data = leads.map((lead, index) => ({
-    '№': index + 1,
-    'Имя': lead.name,
-    'Телефон': lead.phone,
-    'Город': lead.city || '-',
-    'Статус': statusLabels[lead.status] || lead.status,
-    'Менеджер': lead.assignedTo?.name || '-',
-    'Источник': lead.source,
-    'Комментариев': lead._count.comments,
-    'Дата создания': new Date(lead.createdAt).toLocaleDateString('ru-RU', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }),
-  }))
+  // Создаём Excel файл через exceljs (безопасная, поддерживаемая библиотека)
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet('Лиды')
 
-  // Создаем Excel файл
-  const wb = XLSX.utils.book_new()
-  const ws = XLSX.utils.json_to_sheet(data)
-
-  // Устанавливаем ширину колонок
-  ws['!cols'] = [
-    { wch: 5 },   // №
-    { wch: 20 },  // Имя
-    { wch: 18 },  // Телефон
-    { wch: 15 },  // Город
-    { wch: 15 },  // Статус
-    { wch: 20 },  // Менеджер
-    { wch: 10 },  // Источник
-    { wch: 12 },  // Комментариев
-    { wch: 18 },  // Дата
+  ws.columns = [
+    { header: '№', key: 'num', width: 5 },
+    { header: 'Имя', key: 'name', width: 20 },
+    { header: 'Телефон', key: 'phone', width: 18 },
+    { header: 'Город', key: 'city', width: 15 },
+    { header: 'Статус', key: 'status', width: 15 },
+    { header: 'Менеджер', key: 'manager', width: 20 },
+    { header: 'Источник', key: 'source', width: 12 },
+    { header: 'Комментариев', key: 'comments', width: 12 },
+    { header: 'Дата создания', key: 'createdAt', width: 18 },
   ]
 
-  XLSX.utils.book_append_sheet(wb, ws, 'Лиды')
+  // Жирный заголовок
+  ws.getRow(1).font = { bold: true }
 
-  // Генерируем buffer
-  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
+  leads.forEach((lead: (typeof leads)[number], index: number) => {
+    ws.addRow({
+      num: index + 1,
+      name: lead.name,
+      phone: lead.phone,
+      city: lead.city || '-',
+      status: statusLabels[lead.status] || lead.status,
+      manager: lead.assignedTo?.name || '-',
+      source: lead.source,
+      comments: lead._count.comments,
+      createdAt: new Date(lead.createdAt).toLocaleDateString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+    })
+  })
 
-  return new NextResponse(buf, {
+  const buf = await wb.xlsx.writeBuffer()
+
+  return new NextResponse(buf as ArrayBuffer, {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename="leads-${new Date().toISOString().split('T')[0]}.xlsx"`,

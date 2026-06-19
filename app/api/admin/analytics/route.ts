@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
   let directLeads = 0
   let organicLeads = 0
 
-  leads.forEach(lead => {
+  leads.forEach((lead: (typeof leads)[number]) => {
     // По источнику
     const source = lead.utmSource || (lead.fbclid ? 'facebook' : 'direct')
     bySource[source] = (bySource[source] || 0) + 1
@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
     byMedium: sortByValue(byMedium),
     byCampaign: sortByValue(byCampaign),
     bySourceMedium: sortByValue(bySourceMedium),
-    leads: leads.map(lead => ({
+    leads: leads.map((lead: (typeof leads)[number]) => ({
       ...lead,
       source: lead.utmSource || (lead.fbclid ? 'Facebook Ads' : 'Прямой заход'),
       sourceMedium: `${lead.utmSource || (lead.fbclid ? 'facebook' : 'direct')} / ${lead.utmMedium || (lead.fbclid ? 'cpc' : 'none')}`

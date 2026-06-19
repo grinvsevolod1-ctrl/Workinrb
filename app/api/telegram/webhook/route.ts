@@ -32,6 +32,17 @@ function cleanupPendingComments() {
 // Обработка webhook от Telegram
 export async function POST(request: NextRequest) {
   try {
+    // Проверка секретного токена: Telegram присылает его в заголовке при настройке
+    // вебхука с параметром secret_token. Без проверки кто угодно может слать
+    // поддельные запросы и менять статусы лидов.
+    const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET
+    if (webhookSecret) {
+      const incomingSecret = request.headers.get('x-telegram-bot-api-secret-token')
+      if (incomingSecret !== webhookSecret) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+    }
+
     const body = await request.json()
     
     // Периодически чистим просроченные ожидания

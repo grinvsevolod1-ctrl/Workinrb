@@ -83,6 +83,9 @@ model Lead {
   comments      Comment[]
   statusHistory StatusHistory[]
 
+  @@index([status])
+  @@index([createdAt])
+  @@index([assignedToId])
   @@map("leads")
 }
 
@@ -98,6 +101,7 @@ model Comment {
   lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
   leadId String
 
+  @@index([leadId])
   @@map("comments")
 }
 
@@ -133,6 +137,17 @@ model TelegramChat {
   @@map("telegram_chats")
 }
 
+// Настройки сайта (управляются из админки). Храним как key/value,
+// где value — JSON-строка. Обычно используется одна запись key="site".
+model SiteSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+
+  @@map("site_settings")
+}
+
 // История сообщений Telegram
 model TelegramMessage {
   id        String   @id @default(cuid())
@@ -144,5 +159,7 @@ model TelegramMessage {
   chat   TelegramChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
   chatId String
 
+  @@index([chatId, messageId])
+  @@index([leadId])
   @@map("telegram_messages")
 }

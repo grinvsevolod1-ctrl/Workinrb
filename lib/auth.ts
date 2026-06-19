@@ -2,7 +2,15 @@ import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
 import { cookies } from 'next/headers'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key-change-in-production'
+const IS_PRODUCTION = process.env.NODE_ENV === 'production'
+
+// В продакшене JWT_SECRET обязателен — без него приложение не должно запускаться,
+// иначе токены подписываются известным дефолтом и сессии можно подделать.
+if (!process.env.JWT_SECRET && IS_PRODUCTION) {
+  throw new Error('JWT_SECRET is not set. Set a strong secret in the environment before deploying.')
+}
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-insecure-secret-change-me'
 const TOKEN_NAME = 'crm_token'
 
 export interface JWTPayload {
@@ -51,7 +59,9 @@ export async function getCurrentUser(): Promise<JWTPayload | null> {
     const { getPrisma } = await import('./prisma')
     const prisma = getPrisma()
     
-    if (!prisma) return payload // В dev режиме без БД доверяем токену
+    // В продакшене без БД нельзя проверить isActive — отказываем в доступе.
+    // В dev без БД допускаем работу по токену для удобства разработки.
+    if (!prisma) return IS_PRODUCTION ? null : payload
     
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
@@ -60,8 +70,8 @@ export async function getCurrentUser(): Promise<JWTPayload | null> {
     
     if (!user || !user.isActive) return null
   } catch {
-    // Если БД недоступна, доверяем токену
-    return payload
+    // Если запрос к БД упал — не доверяем токену, требуем повторной проверки.
+    return null
   }
   
   return payload

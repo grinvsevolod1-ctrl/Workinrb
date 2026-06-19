@@ -83,7 +83,7 @@ export async function GET() {
       conversionRate
     },
     recentLeads,
-    statusDistribution: statusDistribution.map(s => ({
+    statusDistribution: statusDistribution.map((s: (typeof statusDistribution)[number]) => ({
       status: s.status,
       count: s._count.status
     }))

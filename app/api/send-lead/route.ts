@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPrisma } from '@/lib/prisma'
 import { buildInlineKeyboard } from '@/app/api/telegram/webhook/route'
+import { rateLimit, getClientIp } from '@/lib/rate-limit'
+import { getSettings } from '@/lib/settings'
 import crypto from 'crypto'
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
-const FB_PIXEL_ID = process.env.FB_PIXEL_ID || "1531389875015183"
+const FB_PIXEL_ID = process.env.FB_PIXEL_ID
 const FB_ACCESS_TOKEN = process.env.FACEBOOK_ACCESS_TOKEN
 const FB_API_VERSION = "v22.0"
 
@@ -57,9 +59,10 @@ async function sendFacebookServerEvent(eventData: {
   event_source_url: string
   fbp?: string
   fbc?: string
-}) {
-  if (!FB_ACCESS_TOKEN) {
-    console.log('[FB CAPI] Token not configured, skipping')
+}, pixelId?: string) {
+  const effectivePixelId = pixelId || FB_PIXEL_ID
+  if (!FB_ACCESS_TOKEN || !effectivePixelId) {
+    console.log('[FB CAPI] Token or Pixel ID not configured, skipping')
     return false
   }
   try {
@@ -76,7 +79,7 @@ async function sendFacebookServerEvent(eventData: {
     if (eventData.fbp) payload.data[0].user_data.fbp = eventData.fbp
     if (eventData.fbc) payload.data[0].user_data.fbc = eventData.fbc
 
-    const url = `https://graph.facebook.com/${FB_API_VERSION}/${FB_PIXEL_ID}/events?access_token=${FB_ACCESS_TOKEN}`
+    const url = `https://graph.facebook.com/${FB_API_VERSION}/${effectivePixelId}/events?access_token=${FB_ACCESS_TOKEN}`
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -93,6 +96,16 @@ async function sendFacebookServerEvent(eventData: {
 
 export async function POST(request: NextRequest) {
   try {
+    // Защита от спама заявок: не более 5 отправок за 10 минут с одного IP.
+    const ip = getClientIp(request)
+    const limit = rateLimit(`lead:${ip}`, 5, 10 * 60 * 1000)
+    if (!limit.success) {
+      return NextResponse.json(
+        { error: 'Слишком много заявок. Попробуйте позже.' },
+        { status: 429 }
+      )
+    }
+
     const body = await request.json()
     const {
       name,
@@ -109,6 +122,7 @@ export async function POST(request: NextRequest) {
 
     // Сохраняем в БД
     let lead = null
+    let dbError = false
     const prisma = getPrisma()
     try {
       lead = prisma ? await prisma.lead.create({
@@ -130,8 +144,9 @@ export async function POST(request: NextRequest) {
           userAgent: userAgent || null,
         }
       }) : null
-    } catch (dbError) {
-      console.error('[v0] Database error:', dbError)
+    } catch (err) {
+      dbError = true
+      console.error('[v0] Database error (lead not saved):', err)
     }
 
     // Facebook Conversions API
@@ -181,6 +196,7 @@ ${utmCampaign ? `📢 <b>Кампания:</b> ${escapeHtml(utmCampaign)}` : ''}
 `.trim()
 
     // Отправляем в Telegram чаты из БД
+    let telegramDelivered = false
     if (TELEGRAM_BOT_TOKEN && prisma) {
       try {
         const activeChats = await prisma.telegramChat.findMany({
@@ -194,9 +210,11 @@ ${utmCampaign ? `📢 <b>Кампания:</b> ${escapeHtml(utmCampaign)}` : ''}
             if (chat.type === 'GROUP') {
               // В группы отправляем с кнопками
               telegramMessageId = await sendInteractiveMessage(chat.chatId, leadMessage, lead?.id || '')
+              if (telegramMessageId) telegramDelivered = true
             } else {
               // Менеджерам — обычное сообщение
-              await sendTelegramMessage(chat.chatId, leadMessage)
+              const ok = await sendTelegramMessage(chat.chatId, leadMessage)
+              if (ok) telegramDelivered = true
             }
 
             // Сохраняем сообщение в БД для связи с лидом (важно для комментариев)
@@ -208,7 +226,7 @@ ${utmCampaign ? `📢 <b>Кампания:</b> ${escapeHtml(utmCampaign)}` : ''}
                   leadId: lead.id,
                   chatId: chat.id,
                 }
-              }).catch((err) => console.error('[v0] Failed to save TG message:', err))
+              }).catch((err: unknown) => console.error('[v0] Failed to save TG message:', err))
             }
           } catch (err) {
             console.error(`[v0] Failed to send to chat ${chat.chatId}:`, err)
@@ -225,7 +243,18 @@ ${utmCampaign ? `📢 <b>Кампания:</b> ${escapeHtml(utmCampaign)}` : ''}
       }
     }
 
-    return NextResponse.json({ success: true, leadId: lead?.id })
+    // Лид считается потерянным, только если его не удалось ни сохранить в БД,
+    // ни доставить хотя бы в один Telegram-чат. В этом случае возвращаем ошибку,
+    // чтобы клиент не показывал ложное "Заявка отправлена".
+    if (!lead && !telegramDelivered) {
+      console.error('[v0] Lead LOST: not saved to DB and not delivered to Telegram', { name, phone })
+      return NextResponse.json(
+        { error: 'Не удалось сохранить заявку. Попробуйте ещё раз или свяжитесь с нами напрямую.' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ success: true, leadId: lead?.id, saved: !!lead && !dbError })
   } catch (error) {
     console.error('[v0] Error sending lead:', error)
     return NextResponse.json({ error: 'Ошибка отправки' }, { status: 500 })

@@ -13,7 +13,8 @@ import {
   Menu,
   X,
   BarChart3,
-  Send
+  Send,
+  Settings
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -37,6 +38,7 @@ const adminItems = [
   { href: "/admin/users", label: "Пользователи", icon: Shield },
   { href: "/admin/telegram", label: "Telegram", icon: Send },
   { href: "/admin/analytics", label: "Аналитика UTM", icon: BarChart3 },
+  { href: "/admin/settings", label: "Настройки", icon: Settings },
 ]
 
 export function AdminSidebar({ user }: AdminSidebarProps) {

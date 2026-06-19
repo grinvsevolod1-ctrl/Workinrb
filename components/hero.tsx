@@ -5,10 +5,17 @@ import Image from "next/image"
 import { ArrowDown, Users, Clock, ChevronRight, Leaf } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { LeadModal } from "@/components/lead-modal"
+import { DEFAULT_SETTINGS, type SiteSettings } from "@/lib/settings"
 
-export function Hero() {
+export function Hero({ settings = DEFAULT_SETTINGS }: { settings?: SiteSettings }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [modalOpen, setModalOpen] = useState(false)
+
+  const stats = [
+    { icon: Users, value: settings.heroStat1Value, label: settings.heroStat1Label },
+    { icon: Clock, value: settings.heroStat2Value, label: settings.heroStat2Label },
+    { icon: Leaf, value: settings.heroStat3Value, label: settings.heroStat3Label },
+  ]
 
   return (
     <section ref={containerRef} className="relative min-h-screen overflow-hidden">
@@ -66,22 +73,23 @@ export function Hero() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
               </span>
-              <span className="text-sm text-foreground font-medium">Набор открыт</span>
+              <span className="text-sm text-foreground font-medium">{settings.heroBadgeText}</span>
               <span className="text-muted-foreground">—</span>
-              <span className="text-sm text-primary font-semibold">старт через 3 дня</span>
+              <span className="text-sm text-primary font-semibold">{settings.heroBadgeHighlight}</span>
             </div>
 
             {/* Heading - NO ANIMATION for LCP */}
             <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-bold text-foreground mb-4 sm:mb-6 leading-[0.95] tracking-tight">
-              <span className="text-balance">Честная работа</span>
+              <span className="text-balance">{settings.heroHeadingLine1}</span>
               <br />
-              <span className="gradient-text">100 BYN / день</span>
+              <span className="gradient-text">{settings.heroSalaryText}</span>
             </h1>
 
             {/* Subheading */}
             <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-muted-foreground mb-6 sm:mb-8 md:mb-10 max-w-2xl leading-relaxed">
-              Подсобные работы в Москве <span class="bg-red-600 text-white px-2 py-0.5 rounded-md font-bold">ТОЛЬКО ДЛЯ МУЖЧИН</span>. Вахта от 30 дней. 
-              <span className="text-foreground"> Жильё и питание за наш счёт.</span>
+              {settings.heroSubtitlePrefix}{" "}
+              <span className="bg-red-600 text-white px-2 py-0.5 rounded-md font-bold">{settings.heroMenOnlyBadge}</span>.{" "}
+              <span className="text-foreground">{settings.heroSubtitleSuffix}</span>
             </p>
 
             {/* CTA */}
@@ -109,11 +117,7 @@ export function Hero() {
 
             {/* Stats */}
             <div className="grid grid-cols-3 gap-3 sm:gap-6 max-w-xl">
-              {[
-                { icon: Users, value: "500+", label: "человек работают" },
-                { icon: Clock, value: "7", label: "лет на рынке" },
-                { icon: Leaf, value: "0", label: "задержек выплат" },
-              ].map((stat) => (
+              {stats.map((stat) => (
                 <div key={stat.label} className="text-center">
                   <div className="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-primary/10 mb-2 sm:mb-3">
                     <stat.icon className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
