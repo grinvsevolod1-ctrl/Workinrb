@@ -2,9 +2,12 @@
 
 import Script from "next/script"
 
-const META_PIXEL_ID = process.env.NEXT_PUBLIC_FB_PIXEL_ID || "1531389875015183"
+export function MetaPixel({ enabled = true, pixelId }: { enabled?: boolean; pixelId?: string }) {
+  const META_PIXEL_ID = pixelId || process.env.NEXT_PUBLIC_FB_PIXEL_ID || ""
 
-export function MetaPixel() {
+  // Не рендерим пиксель, если он отключён в админке или нет ID.
+  if (!enabled || !META_PIXEL_ID) return null
+
   return (
     <>
       <Script id="meta-pixel" strategy="afterInteractive">

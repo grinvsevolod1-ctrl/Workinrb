@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import { YandexMetrika } from '@/components/yandex-metrika'
 import { MetaPixel } from '@/components/meta-pixel'
+import { getSettings } from '@/lib/settings'
 import './globals.css'
 
 const inter = Inter({ 
@@ -33,11 +34,13 @@ export const viewport: Viewport = {
   initialScale: 1,
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const settings = await getSettings()
+
   return (
     <html lang="ru" className="bg-background">
       <head>
@@ -46,8 +49,8 @@ export default function RootLayout({
       </head>
       <body className={`${inter.variable} font-sans antialiased`}>
         {children}
-        <YandexMetrika />
-        <MetaPixel />
+        <YandexMetrika enabled={settings.yandexMetrikaEnabled} counterId={settings.yandexMetrikaId} />
+        <MetaPixel enabled={settings.metaPixelEnabled} pixelId={settings.metaPixelId} />
       </body>
     </html>
   )

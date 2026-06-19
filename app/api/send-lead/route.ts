@@ -106,6 +106,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Настройки управляются из админки
+    const settings = await getSettings()
+
+    // Если приём заявок отключён в админке — не принимаем форму.
+    if (!settings.leadFormEnabled) {
+      return NextResponse.json(
+        { error: 'Приём заявок временно приостановлен.' },
+        { status: 503 }
+      )
+    }
+
     const body = await request.json()
     const {
       name,
@@ -155,21 +166,24 @@ export async function POST(request: NextRequest) {
     const cleanPhone = phone.replace(/\D/g, '')
     const clientIp = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || ''
 
-    sendFacebookServerEvent({
-      event_name: 'Lead',
-      event_time: eventTime,
-      action_source: 'website',
-      event_source_url: sourceUrl,
-      user_data: {
-        ph: cleanPhone ? [sha256(cleanPhone)] : undefined,
-        fn: name ? [sha256(name)] : undefined,
-        client_ip_address: clientIp || undefined,
-        client_user_agent: userAgent || undefined,
-      },
-      custom_data: { value: '0.00', currency: 'BYN' },
-      fbp: fbp || undefined,
-      fbc: fbc || undefined,
-    }).catch(err => console.error('[FB CAPI] Failed:', err))
+    // Facebook Conversions API отправляем только если включено в админке.
+    if (settings.facebookCapiEnabled) {
+      sendFacebookServerEvent({
+        event_name: 'Lead',
+        event_time: eventTime,
+        action_source: 'website',
+        event_source_url: sourceUrl,
+        user_data: {
+          ph: cleanPhone ? [sha256(cleanPhone)] : undefined,
+          fn: name ? [sha256(name)] : undefined,
+          client_ip_address: clientIp || undefined,
+          client_user_agent: userAgent || undefined,
+        },
+        custom_data: { value: '0.00', currency: 'BYN' },
+        fbp: fbp || undefined,
+        fbc: fbc || undefined,
+      }, settings.metaPixelId || undefined).catch((err: unknown) => console.error('[FB CAPI] Failed:', err))
+    }
 
     // Форматируем сообщение для Telegram
     const currentDate = new Date().toLocaleString('ru-RU', {
@@ -195,9 +209,9 @@ ${utmCampaign ? `📢 <b>Кампания:</b> ${escapeHtml(utmCampaign)}` : ''}
 📅 <b>Дата:</b> ${currentDate}
 `.trim()
 
-    // Отправляем в Telegram чаты из БД
+    // Отправляем в Telegram чаты из БД (только если включено в админке)
     let telegramDelivered = false
-    if (TELEGRAM_BOT_TOKEN && prisma) {
+    if (settings.telegramNotificationsEnabled && TELEGRAM_BOT_TOKEN && prisma) {
       try {
         const activeChats = await prisma.telegramChat.findMany({
           where: { isActive: true }

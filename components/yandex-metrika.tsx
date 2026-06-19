@@ -2,7 +2,12 @@
 
 import Script from "next/script"
 
-export function YandexMetrika() {
+export function YandexMetrika({ enabled = true, counterId }: { enabled?: boolean; counterId?: string }) {
+  const YM_ID = counterId || process.env.NEXT_PUBLIC_YANDEX_METRIKA_ID || ""
+
+  // Не рендерим счётчик, если он отключён в админке или нет ID.
+  if (!enabled || !YM_ID) return null
+
   return (
     <>
       <Script id="yandex-metrika" strategy="afterInteractive">
@@ -14,7 +19,7 @@ export function YandexMetrika() {
             k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
           })(window, document, 'script', 'https://mc.yandex.ru/metrika/tag.js', 'ym');
 
-          ym(109238611, 'init', {
+          ym(${YM_ID}, 'init', {
             clickmap: true,
             trackLinks: true,
             accurateTrackBounce: true,
@@ -26,7 +31,7 @@ export function YandexMetrika() {
       <noscript>
         <div>
           <img 
-            src="https://mc.yandex.ru/watch/109238611" 
+            src={`https://mc.yandex.ru/watch/${YM_ID}`}
             style={{ position: "absolute", left: "-9999px" }} 
             alt="" 
           />
