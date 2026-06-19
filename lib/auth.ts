@@ -3,15 +3,22 @@ import bcrypt from 'bcryptjs'
 import { cookies } from 'next/headers'
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production'
-
-// В продакшене JWT_SECRET обязателен — без него приложение не должно запускаться,
-// иначе токены подписываются известным дефолтом и сессии можно подделать.
-if (!process.env.JWT_SECRET && IS_PRODUCTION) {
-  throw new Error('JWT_SECRET is not set. Set a strong secret in the environment before deploying.')
-}
-
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-insecure-secret-change-me'
 const TOKEN_NAME = 'crm_token'
+
+// Возвращает секрет для подписи JWT. В продакшене JWT_SECRET обязателен —
+// без него токены подписывались бы известным дефолтом и сессии можно было бы
+// подделать. Проверка выполняется лениво (в рантайме при работе с токеном),
+// а не на этапе загрузки модуля, чтобы не ломать сборку.
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET
+  if (!secret) {
+    if (IS_PRODUCTION) {
+      throw new Error('JWT_SECRET is not set. Set a strong secret in the environment before deploying.')
+    }
+    return 'dev-only-insecure-secret-change-me'
+  }
+  return secret
+}
 
 export interface JWTPayload {
   userId: string
@@ -32,13 +39,13 @@ export async function verifyPassword(password: string, hashedPassword: string): 
 
 // Создание JWT токена
 export function createToken(payload: JWTPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' })
+  return jwt.sign(payload, getJwtSecret(), { expiresIn: '7d' })
 }
 
 // Верификация токена
 export function verifyToken(token: string): JWTPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as JWTPayload
+    return jwt.verify(token, getJwtSecret()) as JWTPayload
   } catch {
     return null
   }
